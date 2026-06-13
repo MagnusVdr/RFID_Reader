@@ -1,6 +1,51 @@
 #include "st25r3912_hal.h"
 
 /**
+ * @brief Initializes the ST25R3912 SPI device and verifies communication.
+ *
+ * @param hnd Pointer to the driver context. The hnd->hw struct must have 
+ * spi_host and cs_pin populated before calling this.
+ * @return esp_err_t ESP_OK on success, ESP_ERR_NOT_FOUND if chip ID is wrong.
+ */
+esp_err_t st25r3912_init(st25r3912_t *hnd) 
+{
+    if (hnd == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t ret = ESP_OK;
+
+    // 1. Configure the SPI Device Interface
+    spi_device_interface_config_t dev_cfg = {
+        .clock_speed_hz = 4 * 1000 * 1000,      // 4 MHz (Datasheet max is 6 MHz )
+        .mode = 1,                              // CPOL = 0, CPHA = 1 (Sample on falling edge )
+        .spics_io_num = hnd->hw.cs_pin,         // ESP-IDF handles the CS pin automatically
+        .queue_size = 7,                        // Number of queued transactions
+    };
+
+    // 2. Attach the ST25R3912 to the SPI bus
+    ret = spi_bus_add_device(hnd->hw.spi_host, &dev_cfg, &hnd->hw.spi_handle);
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    // 3. Test Communication by reading the IC Identity Register
+    ret = st25_read_register(&hnd->hw, ST25R3912_REG_IC_IDENTITY, &hnd->registers.ic_identity.byte);
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    // 4. Verify the Chip ID
+    // The top 5 bits (ic_type) for the ST25R3912 are 0b00001.
+    // 0b00001000 in hex is 0x08.
+    if ((hnd->registers.ic_identity.byte & 0xF8) != 0x08) {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    return ret;
+}
+
+/**
  * @brief Modifies specific bits in a register (Read-Modify-Write).
  * * @param hw Pointer to hardware context.
  * @param reg_addr Register address.
@@ -121,4 +166,25 @@ esp_err_t st25_execute_command(st25r3912_hw_t *hw, st25_direct_command_t cmd)
     t.tx_buffer = tx_buf;
 
     return spi_device_polling_transmit(hw->spi_handle, &t);
+}
+
+/**
+ * @brief Routes the internal oscillator to the MCU_CLK pin for diagnostic probing.
+ * * @param hw Pointer to the hardware context.
+ * @param enable If true, outputs a 6.78 MHz square wave to MCU_CLK. If false, sets pin to High-Z.
+ * @return esp_err_t ESP_OK on success.
+ */
+esp_err_t st25_enable_mcu_clk_output(st25r3912_hw_t *hw, bool enable)
+{
+    if (hw == NULL) return ESP_ERR_INVALID_ARG;
+
+    // The clock output routing is controlled by bits 1 and 0 (out_cl) 
+    // in IO Configuration Register 1 (0x00).
+    // Mask: 0x03 (0000 0011)
+    // Value: 0x03 (11) outputs fc/2 (6.78 MHz), 0x00 disables it (High-Z).
+    
+    uint8_t mask = 0x03;
+    uint8_t value = enable ? 0x03 : 0x00;
+    
+    return st25_modify_register(hw, ST25R3912_REG_IO_CONF_1, mask, value);
 }

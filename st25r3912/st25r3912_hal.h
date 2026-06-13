@@ -58,10 +58,14 @@ typedef struct
     st25r3912_registers registers;
 }st25r3912_t;
 
+esp_err_t st25r3912_init(st25r3912_t *hnd);
+
 esp_err_t st25_modify_register(st25r3912_hw_t *hw, uint8_t reg_addr, uint8_t mask, uint8_t value);
 esp_err_t st25_read_fifo(st25r3912_hw_t *hw, uint8_t *buf, uint8_t len);
 esp_err_t st25_read_register(st25r3912_hw_t *hw, uint8_t reg_addr, uint8_t *data);
 esp_err_t st25_write_register(st25r3912_hw_t *hw, uint8_t reg_addr, uint8_t data);
 esp_err_t st25_execute_command(st25r3912_hw_t *hw, st25_direct_command_t cmd);
+
+esp_err_t st25_enable_mcu_clk_output(st25r3912_hw_t *hw, bool enable);
 
 #endif // ST25R3912_HAL_H

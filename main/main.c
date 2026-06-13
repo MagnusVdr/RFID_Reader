@@ -70,18 +70,6 @@ void app_main(void)
         // gpio_set_level(LED_PIN, led_state);
         led_state = !led_state;
 
-        // Turn field ON and wait 10ms for tag to boot
-        st25_field_on(&st25.hw);
-        vTaskDelay(pdMS_TO_TICKS(10));
-
-        ESP_LOGI("APP", "Scanning for ISO 15693 tags...");
-        st25_run_anticollision(&st25.hw);
-
-        st25_test_anticollision(&st25.hw);
-
-        // Turn field OFF to save power and reset the tag
-        st25_field_off(&st25.hw);
-
         vTaskDelay(pdMS_TO_TICKS(1000)); 
     }
 }
